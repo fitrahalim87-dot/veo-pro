@@ -56,7 +56,9 @@ export async function generateEdgeTtsDetailed(
       const data = await response.json();
       errMsg = data.error || errMsg;
     } catch {
-      // response might be raw text
+      if (response.status === 404) {
+        errMsg = "Server API (/api/tts) tidak ditemukan (404). Di Vercel, pastikan file 'api/index.ts' dan 'vercel.json' sudah di-deploy dengan menekan tombol 'Redeploy' di Vercel Dashboard.";
+      }
     }
     throw new Error(errMsg);
   }
@@ -79,29 +81,138 @@ export async function generateEdgeTts(
   return res.url;
 }
 
-export async function mergeAudioSegments(audioSegments: string[]): Promise<{ url: string; blob: Blob }> {
-  const response = await fetch("/api/audio/merge", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ audioSegments }),
-  });
+// Convert AudioBuffer to standard WAV Blob in pure browser JS
+function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
+  const numOfChan = buffer.numberOfChannels;
+  const length = buffer.length * numOfChan * 2 + 44;
+  const out = new DataView(new ArrayBuffer(length));
+  const channels: Float32Array[] = [];
+  const sampleRate = buffer.sampleRate;
+  let offset = 0;
+  let pos = 0;
 
-  if (!response.ok) {
-    let errMsg = "Gagal menggabungkan audio";
-    try {
-      const data = await response.json();
-      errMsg = data.error || errMsg;
-    } catch {
-      // response might be raw text
+  function writeString(str: string) {
+    for (let i = 0; i < str.length; i++) {
+      out.setUint8(pos++, str.charCodeAt(i));
     }
-    throw new Error(errMsg);
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  return { url, blob };
+  function setUint16(data: number) {
+    out.setUint16(pos, data, true);
+    pos += 2;
+  }
+
+  function setUint32(data: number) {
+    out.setUint32(pos, data, true);
+    pos += 4;
+  }
+
+  // RIFF identifier
+  writeString("RIFF");
+  setUint32(length - 8);
+  writeString("WAVE");
+  writeString("fmt ");
+  setUint32(16); // subchunk1 size (16 for PCM)
+  setUint16(1); // audio format (1 = PCM)
+  setUint16(numOfChan);
+  setUint32(sampleRate);
+  setUint32(sampleRate * 2 * numOfChan); // byte rate
+  setUint16(numOfChan * 2); // block align
+  setUint16(16); // bits per sample
+
+  // data chunk
+  writeString("data");
+  setUint32(length - pos - 4);
+
+  for (let i = 0; i < numOfChan; i++) {
+    channels.push(buffer.getChannelData(i));
+  }
+
+  while (offset < buffer.length) {
+    for (let i = 0; i < numOfChan; i++) {
+      let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+      sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+      out.setInt16(pos, sample, true);
+      pos += 2;
+    }
+    offset++;
+  }
+
+  return new Blob([out.buffer], { type: "audio/wav" });
+}
+
+// Fast browser-based audio concatenation using Web Audio API
+export async function mergeAudioSegmentsClientSide(audioSegments: string[]): Promise<{ url: string; blob: Blob }> {
+  const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+  const audioCtx = new AudioCtxClass();
+
+  const audioBuffers: AudioBuffer[] = [];
+
+  for (const seg of audioSegments) {
+    let arrayBuffer: ArrayBuffer;
+    if (seg.startsWith("data:")) {
+      const base64 = seg.split(",")[1];
+      const binaryString = atob(base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      arrayBuffer = bytes.buffer;
+    } else {
+      const res = await fetch(seg);
+      arrayBuffer = await res.arrayBuffer();
+    }
+
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+    audioBuffers.push(decoded);
+  }
+
+  if (audioBuffers.length === 0) {
+    throw new Error("Tidak ada segmen audio untuk digabungkan.");
+  }
+
+  const numberOfChannels = Math.max(...audioBuffers.map(b => b.numberOfChannels));
+  const sampleRate = audioBuffers[0].sampleRate;
+  const totalLength = audioBuffers.reduce((sum, b) => sum + b.length, 0);
+
+  const mergedBuffer = audioCtx.createBuffer(numberOfChannels, totalLength, sampleRate);
+  for (let ch = 0; ch < numberOfChannels; ch++) {
+    const channelData = mergedBuffer.getChannelData(ch);
+    let offset = 0;
+    for (const b of audioBuffers) {
+      const srcData = ch < b.numberOfChannels ? b.getChannelData(ch) : b.getChannelData(0);
+      channelData.set(srcData, offset);
+      offset += b.length;
+    }
+  }
+
+  const wavBlob = audioBufferToWavBlob(mergedBuffer);
+  const url = URL.createObjectURL(wavBlob);
+  return { url, blob: wavBlob };
+}
+
+export async function mergeAudioSegments(audioSegments: string[]): Promise<{ url: string; blob: Blob }> {
+  try {
+    const response = await fetch("/api/audio/merge", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ audioSegments }),
+    });
+
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      return { url, blob };
+    }
+  } catch (e) {
+    console.warn("Server merge error, falling back to client-side Web Audio merge:", e);
+  }
+
+  // Graceful client-side fallback (100% works on Vercel without ffmpeg)
+  return await mergeAudioSegmentsClientSide(audioSegments);
 }
 
 export async function lookupColabCode(code: string): Promise<{ ok: boolean; colabUrl: string; code: string; message: string }> {
@@ -196,4 +307,3 @@ export async function fetchAvailableVoices(): Promise<any[]> {
     return [];
   }
 }
-
