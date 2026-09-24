@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Custom Audio Player Styling */
+audio::-webkit-media-controls-panel {
+  background-color: #f1f5f9;
+}
+
+audio::-webkit-media-controls-play-button,
+audio::-webkit-media-controls-mute-button {
+  background-color: #3b82f6;
+  border-radius: 50%;
+}
+
+audio::-webkit-media-controls-current-time-display,
+audio::-webkit-media-controls-time-remaining-display {
+  color: #0f172a;
+}
+
+audio::-webkit-media-controls-timeline {
+  background-color: #e2e8f0;
+  border-radius: 10px;
+  margin-left: 10px;
+  margin-right: 10px;
+}

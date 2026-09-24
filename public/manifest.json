@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "VEO PRO",
+  "short_name": "VEO PRO",
+  "description": "VEO PRO: Text to Speech ala Speechma Free dengan banyak karakter viral.",
+  "theme_color": "#f8fafc",
+  "background_color": "#f8fafc",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

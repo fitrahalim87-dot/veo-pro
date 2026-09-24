@@ -1,0 +1,8 @@
+{
+  "name": "VEO PRO",
+  "description": "VEO PRO: Text to Speech ala Speechma Free dengan banyak karakter viral (Brian, Alex, Ava, Emma, Gadis, Anime) dan dukungan multilingual.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
