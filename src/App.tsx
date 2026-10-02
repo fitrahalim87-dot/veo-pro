@@ -19,7 +19,11 @@ import {
   Layers,
   FileText,
   Scissors,
-  Mic
+  Mic,
+  Play,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -29,7 +33,6 @@ import {
 } from './constants';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { LongScriptSegmentManager } from './components/LongScriptSegmentManager';
-import { VoiceCloneModal } from './components/VoiceCloneModal';
 import { VoiceCloneStudioTab } from './components/VoiceCloneStudioTab';
 import { generateEdgeTts, generateAiScript } from './services/ttsService';
 
@@ -53,8 +56,8 @@ export default function App() {
   const [speechmaApiKey, setSpeechmaApiKey] = useState<string>('');
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [workspaceMode, setWorkspaceMode] = useState<'segments' | 'single'>('segments');
-  const [showVoiceCloneModal, setShowVoiceCloneModal] = useState<boolean>(false);
   const [mainTab, setMainTab] = useState<'tts' | 'clone'>('tts');
+  const [isStyleExpanded, setIsStyleExpanded] = useState(true);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -295,196 +298,96 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-white/10 rounded-full text-[11px] font-bold text-neutral-300 transition-colors"
-              title="Pengaturan Mesin Speechma"
-            >
-              <Sliders className="w-3.5 h-3.5 text-blue-400" />
-              <span>{speechmaApiKey ? 'Speechma Pro (API Key)' : 'Speechma Free Mode'}</span>
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Settings Modal (Optional Speechma API Key) */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-slate-900 border-b border-blue-500/20 overflow-hidden"
-          >
-            <div className="max-w-5xl mx-auto px-6 py-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-blue-600" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                    Konfigurasi Mesin Speechma (Opsional)
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="text-xs text-slate-500 hover:text-slate-900"
-                >
-                  Tutup ✕
-                </button>
-              </div>
-              <p className="text-xs text-slate-600">
-                Aplikasi ini sudah otomatis menggunakan <strong>Speechma Neural Engine</strong> secara <strong>100% Gratis</strong> tanpa perlu login atau API key. Jika kamu punya akun Speechma berbayar dan ingin memakai API Key resmi milikmu, masukkan kuncinya di bawah:
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2 max-w-xl">
-                <input
-                  type="text"
-                  placeholder="Masukkan Speechma API Key (contoh: sm_...)"
-                  value={speechmaApiKey}
-                  onChange={(e) => setSpeechmaApiKey(e.target.value)}
-                  className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-2 text-xs text-slate-900 focus:border-blue-500 outline-none placeholder:text-slate-400"
-                />
-                {speechmaApiKey && (
-                  <button
-                    onClick={() => setSpeechmaApiKey('')}
-                    className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold"
-                  >
-                    Hapus Key
-                  </button>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Navigation Tabs */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-5xl mx-auto px-6 flex items-center gap-2 overflow-x-auto">
-          <button
-            onClick={() => setMainTab('tts')}
-            className={`py-3.5 px-4 font-black text-xs transition-all flex items-center gap-2 border-b-2 shrink-0 ${
-              mainTab === 'tts'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Volume2 className="w-4 h-4" />
-            <span>Studio Suara & Narator AI</span>
-            <span className="text-[10px] bg-slate-100 text-slate-600 font-mono px-2 py-0.5 rounded-full font-bold">
-              {filteredVoices.length} Karakter
-            </span>
-          </button>
-
-          <button
-            onClick={() => setMainTab('clone')}
-            className={`py-3.5 px-4 font-black text-xs transition-all flex items-center gap-2 border-b-2 shrink-0 ${
-              mainTab === 'clone'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Mic className="w-4 h-4 text-blue-600" />
-            <span>Studio Kloning Suara (OmniVoice)</span>
-            <span className="text-[10px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-2 py-0.5 rounded-full font-bold shadow-xs">
-              100% Suaramu
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <main className={`${mainTab === 'clone' ? 'max-w-7xl' : 'max-w-5xl'} mx-auto px-4 sm:px-6 py-8 space-y-8 transition-all`}>
-        {mainTab === 'clone' ? (
-          <div className="space-y-8">
-            <VoiceCloneStudioTab onSaveToHistory={handleSaveItemToHistory} />
-
-            {/* Riwayat Audio in Clone Tab */}
-            {history.length > 0 && (
-              <section className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-lg shadow-slate-300">
-                <div className="px-6 py-4 border-b border-slate-100 bg-white flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Music className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-slate-900">Riwayat Audio</h2>
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-500 font-mono">{history.length} Item</span>
-                </div>
-                <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
-                  {history.map((item) => (
-                    <div key={item.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                          <Volume2 className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-slate-900 truncate">{item.name}</h4>
-                          <p className="text-[10px] text-slate-500 font-medium">
-                            {item.voiceName} &bull; {new Date(item.timestamp).toLocaleDateString('id-ID')} {new Date(item.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a 
-                          href={item.url} 
-                          download={`${item.name}.mp3`}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 transition-all"
-                          title="Download MP3"
-                        >
-                          <Download className="w-4 h-4" />
-                        </a>
-                        <button 
-                          onClick={() => handleDeleteHistory(item.id)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-red-500 hover:text-white text-slate-500 transition-all"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8 transition-all">
+        {/* Board Klon Suara */}
+        <section className="bg-white rounded-3xl border border-slate-200 shadow-lg shadow-black/[0.04] p-4 sm:p-5 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <Mic className="w-5 h-5 text-emerald-600 shrink-0" />
+            <h2 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
+              Klon Suara [ VOICE CLONING ]
+            </h2>
           </div>
-        ) : (
-          <>
-            {/* Cloning Suara Card */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 shadow-md hover:border-blue-400 transition-all">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-                  <Sparkles className="w-6 h-6 animate-pulse" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-black text-slate-900">Kloning Suara AI (100% Suaramu)</p>
-                    <span className="text-[10px] font-mono font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">
-                      OmniVoice GPU
-                    </span>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {/* Sleek, Premium, Modern VONIGEN by AniKi Card */}
+            <motion.a
+              href="https://aniki.vibecoder.co.id/voicegen/"
+              target="_blank"
+              rel="noopener noreferrer"
+              whileHover={{ scale: 1.008, y: -1 }}
+              whileTap={{ scale: 0.995 }}
+              className="block w-full bg-white rounded-2xl border border-emerald-500/30 p-3 sm:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:border-emerald-500/60 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Play Icon Container */}
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                    <Play className="w-4 h-4 fill-white ml-0.5" />
                   </div>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Gunakan rekaman suara aslimu untuk membaca naskah apa pun secara gratis lewat Google Colab.
-                  </p>
+                  <div className="text-left min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xs font-black text-slate-900 tracking-tight truncate">
+                        VONIGEN [ CLONING SUARA ]
+                      </h2>
+                      <span className="text-[8px] sm:text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">
+                        OmniVoice GPU
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-0.5 truncate xs:whitespace-normal">
+                      Kloning 100% Suara Aslimu Gratis Menggunakan Google Colab GPU
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 sm:gap-1.5 text-emerald-600 font-black text-[10px] sm:text-[11px] uppercase tracking-wider shrink-0">
+                  <span>Buka Dasbor</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-emerald-500" />
                 </div>
               </div>
+            </motion.a>
 
-              <div className="flex items-center gap-2.5 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setMainTab('clone')}
-                  className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Buka Tab Studio Kloning</span>
-                </button>
+            {/* Sleek, Premium Google Colab Card */}
+            <motion.a
+              href="https://colab.research.google.com/drive/1C6iGmtFtesHJCysx3hQgvmqWPa3GdqeG#scrollTo=SZDUmW9c6bPq"
+              target="_blank"
+              rel="noopener noreferrer"
+              whileHover={{ scale: 1.008, y: -1 }}
+              whileTap={{ scale: 0.995 }}
+              className="block w-full bg-slate-50 rounded-2xl border border-emerald-500/30 p-3 sm:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:border-emerald-500/60 hover:bg-slate-100/70 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Colab Circular Icon Container */}
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div className="text-left min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xs font-black text-slate-800 tracking-tight truncate">
+                        Buka Google Colab Notebook
+                      </h3>
+                      <span className="text-[8px] sm:text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">
+                        Colab GPU
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-0.5 truncate xs:whitespace-normal">
+                      Hubungkan Colab GPU & dapatkan Kode Akses Kloning Suaramu
+                    </p>
+                  </div>
+                </div>
 
-                <a
-                  href="https://colab.research.google.com/drive/1ll6P5bU4ExOsdtd6KPetYh7umWnvT31G"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 sm:flex-none px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5"
-                >
+                <div className="flex items-center gap-1 sm:gap-1.5 text-emerald-600 font-black text-[10px] sm:text-[11px] uppercase tracking-wider shrink-0">
                   <span>Buka Colab</span>
-                  <Globe className="w-3.5 h-3.5 text-blue-600" />
-                </a>
+                  <ExternalLink className="w-3.5 h-3.5 text-emerald-500" />
+                </div>
               </div>
-            </div>
+            </motion.a>
+          </div>
+        </section>
 
             {/* Main Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -493,7 +396,7 @@ export default function App() {
           <div className="lg:col-span-5 space-y-6">
             
             {/* Box Pemilihan Suara */}
-            <section className="bg-white rounded-3xl border border-slate-200 shadow-lg shadow-slate-300 p-6 space-y-4">
+            <section className="bg-white rounded-3xl border border-slate-200 shadow-lg shadow-black/[0.04] p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-900">
                   <Volume2 className="w-4 h-4 text-blue-600" />
@@ -520,12 +423,6 @@ export default function App() {
                     ✕
                   </button>
                 )}
-              </div>
-
-              {/* Multilingual Cross-Lingual Note */}
-              <div className="text-[11px] text-slate-600 bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span><strong className="text-slate-900">Semua karakter</strong> bisa membaca teks bahasa Indonesia, Inggris, atau bahasa apa pun secara cross-lingual!</span>
               </div>
 
               {/* Filter Kategori Suara */}
@@ -639,105 +536,133 @@ export default function App() {
             </section>
 
             {/* Box Presets & Sliders */}
-            <section className="bg-white rounded-3xl border border-slate-200 shadow-lg shadow-slate-300 p-6 space-y-5">
-              <div className="flex items-center justify-between">
+            <section className="bg-white rounded-3xl border border-slate-200 shadow-lg shadow-black/[0.04] overflow-hidden flex flex-col">
+              {/* Clickable Header */}
+              <div 
+                onClick={() => setIsStyleExpanded(!isStyleExpanded)}
+                className="px-6 py-5 flex items-center justify-between bg-white cursor-pointer select-none hover:bg-slate-50 transition-colors"
+              >
                 <div className="flex items-center gap-2 text-slate-900">
                   <Sliders className="w-4 h-4 text-blue-600" />
                   <h2 className="text-xs font-bold uppercase tracking-widest">Gaya & Nada Bicara</h2>
                 </div>
-                {(speed !== 0 || pitch !== 0) && (
-                  <button 
-                    onClick={handleResetControls}
-                    className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-blue-600 font-bold transition-colors"
+                
+                <div className="flex items-center gap-3">
+                  {(speed !== 0 || pitch !== 0) && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleResetControls();
+                      }}
+                      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-blue-600 font-bold transition-colors mr-1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Reset
+                    </button>
+                  )}
+                  {isStyleExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+              </div>
+
+              {/* Collapsible Content */}
+              <AnimatePresence initial={false}>
+                {isStyleExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="border-t border-slate-100 p-6 pt-5 space-y-5 overflow-hidden"
                   >
-                    <RotateCcw className="w-3 h-3" />
-                    Reset
-                  </button>
-                )}
-              </div>
+                    {/* Preset Gaya Cepat */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Preset Siap Pakai</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {VOICE_PRESETS.map((p) => {
+                          const isActive = speed === p.speed && pitch === p.pitch;
+                          return (
+                            <button
+                              key={p.name}
+                              type="button"
+                              onClick={() => handleApplyPreset(p.speed, p.pitch)}
+                              className={`p-2 rounded-xl border text-left transition-all ${
+                                isActive 
+                                  ? 'bg-blue-600 text-white font-bold border-blue-600 shadow-md' 
+                                  : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
+                              }`}
+                            >
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                <span>{p.icon}</span>
+                                <span className="truncate">{p.name}</span>
+                              </div>
+                              <span className={`text-[9px] block mt-0.5 truncate ${isActive ? 'text-white/80 font-medium' : 'text-slate-500'}`}>
+                                {p.speed >= 0 ? `+${p.speed}%` : `${p.speed}%`} / {p.pitch >= 0 ? `+${p.pitch}Hz` : `${p.pitch}Hz`}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-              {/* Preset Gaya Cepat */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Preset Siap Pakai</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {VOICE_PRESETS.map((p) => {
-                    const isActive = speed === p.speed && pitch === p.pitch;
-                    return (
-                      <button
-                        key={p.name}
-                        onClick={() => handleApplyPreset(p.speed, p.pitch)}
-                        className={`p-2 rounded-xl border text-left transition-all ${
-                          isActive 
-                            ? 'bg-blue-600 text-white font-bold border-blue-600 shadow-md' 
-                            : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
-                        }`}
-                      >
-                        <div className="text-xs font-bold flex items-center gap-1.5">
-                          <span>{p.icon}</span>
-                          <span className="truncate">{p.name}</span>
+                    {/* Sliders Manual */}
+                    <div className="space-y-4 pt-4 border-t border-slate-200">
+                      {/* Speed Slider */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-600 font-semibold">Kecepatan Bicara (Speed)</span>
+                          <span className="font-mono font-bold text-blue-600">
+                            {speed > 0 ? `+${speed}%` : `${speed}%`}
+                            {speed > 15 ? ' (Cepat)' : speed < -10 ? ' (Lambat)' : ' (Normal)'}
+                          </span>
                         </div>
-                        <span className={`text-[9px] block mt-0.5 truncate ${isActive ? 'text-white/80 font-medium' : 'text-slate-500'}`}>
-                          {p.speed >= 0 ? `+${p.speed}%` : `${p.speed}%`} / {p.pitch >= 0 ? `+${p.pitch}Hz` : `${p.pitch}Hz`}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                        <input
+                          type="range"
+                          min="-30"
+                          max="50"
+                          step="5"
+                          value={speed}
+                          onChange={(e) => setSpeed(Number(e.target.value))}
+                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                          <span>-30%</span>
+                          <span>0% (Standar)</span>
+                          <span>+50%</span>
+                        </div>
+                      </div>
 
-              {/* Sliders Manual */}
-              <div className="space-y-4 pt-2 border-t border-slate-200">
-                {/* Speed Slider */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-600 font-semibold">Kecepatan Bicara (Speed)</span>
-                    <span className="font-mono font-bold text-blue-600">
-                      {speed > 0 ? `+${speed}%` : `${speed}%`}
-                      {speed > 15 ? ' (Cepat)' : speed < -10 ? ' (Lambat)' : ' (Normal)'}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="-30"
-                    max="50"
-                    step="5"
-                    value={speed}
-                    onChange={(e) => setSpeed(Number(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                    <span>-30%</span>
-                    <span>0% (Standar)</span>
-                    <span>+50%</span>
-                  </div>
-                </div>
-
-                {/* Pitch Slider */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-600 font-semibold">Tinggi Rendah Nada (Pitch)</span>
-                    <span className="font-mono font-bold text-blue-600">
-                      {pitch > 0 ? `+${pitch}Hz` : `${pitch}Hz`}
-                      {pitch > 10 ? ' (Tinggi/Imut)' : pitch < -10 ? ' (Bass/Deep)' : ' (Normal)'}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="-30"
-                    max="30"
-                    step="5"
-                    value={pitch}
-                    onChange={(e) => setPitch(Number(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                    <span>-30Hz (Deep)</span>
-                    <span>0Hz (Normal)</span>
-                    <span>+30Hz (Imut)</span>
-                  </div>
-                </div>
-              </div>
-
+                      {/* Pitch Slider */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-600 font-semibold">Tinggi Rendah Nada (Pitch)</span>
+                          <span className="font-mono font-bold text-blue-600">
+                            {pitch > 0 ? `+${pitch}Hz` : `${pitch}Hz`}
+                            {pitch > 10 ? ' (Tinggi/Imut)' : pitch < -10 ? ' (Bass/Deep)' : ' (Normal)'}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="-30"
+                          max="30"
+                          step="5"
+                          value={pitch}
+                          onChange={(e) => setPitch(Number(e.target.value))}
+                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                          <span>-30Hz (Deep)</span>
+                          <span>0Hz (Normal)</span>
+                          <span>+30Hz (Imut)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </section>
           </div>
 
@@ -806,7 +731,7 @@ export default function App() {
                 )}
 
                 {/* Script Editor */}
-                <section className="bg-white rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-lg shadow-slate-300">
+                <section className="bg-white rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-lg shadow-black/[0.04]">
                   <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -963,7 +888,7 @@ export default function App() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 20 }}
-                      className="bg-white rounded-3xl border border-blue-100 p-6 flex flex-col items-center text-center space-y-5 shadow-lg shadow-slate-300 relative overflow-hidden"
+                      className="bg-white rounded-3xl border border-blue-100 p-6 flex flex-col items-center text-center space-y-5 shadow-lg shadow-black/[0.04] relative overflow-hidden"
                     >
                       <div className="w-full flex items-center justify-between pb-3 border-b border-slate-100">
                         <div className="flex items-center gap-2">
@@ -1019,7 +944,7 @@ export default function App() {
 
             {/* Riwayat Simpan Audio */}
             {history.length > 0 && (
-              <section className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-lg shadow-slate-300">
+              <section className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-lg shadow-black/[0.04]">
                 <div className="px-6 py-4 border-b border-slate-100 bg-white flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Music className="w-4 h-4 text-blue-600" />
@@ -1067,16 +992,7 @@ export default function App() {
           </div>
 
         </div>
-          </>
-        )}
       </main>
-
-      {/* Voice Clone Studio Modal */}
-      <VoiceCloneModal 
-        isOpen={showVoiceCloneModal}
-        onClose={() => setShowVoiceCloneModal(false)}
-        onSaveToHistory={handleSaveItemToHistory}
-      />
     </div>
   );
 }

@@ -19,7 +19,8 @@ import {
   Layers,
   ChevronDown,
   Volume2,
-  FileAudio
+  FileAudio,
+  Film
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Voice } from '../constants';
@@ -43,6 +44,7 @@ interface Props {
   pitch: number;
   speechmaApiKey: string;
   onSaveToHistory: (item: { name: string; url: string; voiceName: string }) => void;
+  onOpenVideoModal?: (item: { url: string; title: string; voiceName: string }) => void;
 }
 
 export const LongScriptSegmentManager: React.FC<Props> = ({
@@ -52,9 +54,10 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
   pitch,
   speechmaApiKey,
   onSaveToHistory,
+  onOpenVideoModal,
 }) => {
   const [masterScript, setMasterScript] = useState('');
-  const [maxCharsPerSegment, setMaxCharsPerSegment] = useState<number>(3000);
+  const [maxCharsPerSegment, setMaxCharsPerSegment] = useState<number>(1500);
   const [segments, setSegments] = useState<ScriptSegment[]>([]);
   
   // Batch generation state
@@ -75,6 +78,20 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
 
   const activeVoice = voices.find(v => v.id === selectedVoiceId) || voices[0];
   const [voiceSyncMessage, setVoiceSyncMessage] = useState<string | null>(null);
+  const [batchElapsed, setBatchElapsed] = useState(0);
+
+  useEffect(() => {
+    let interval: any;
+    if (isBatchGenerating) {
+      setBatchElapsed(0);
+      interval = setInterval(() => {
+        setBatchElapsed(prev => prev + 1);
+      }, 1000);
+    } else {
+      setBatchElapsed(0);
+    }
+    return () => clearInterval(interval);
+  }, [isBatchGenerating, currentBatchIndex]);
 
   // Automatically sync newly selected voice from Katalog Karakter Suara to existing segments
   const prevVoiceRef = useRef(selectedVoiceId);
@@ -419,8 +436,8 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
                 <Scissors className="w-3.5 h-3.5 text-blue-600" />
                 Maksimal per segmen:
               </span>
-              <div className="flex items-center gap-1">
-                {[2000, 2500, 2900, 3000].map(val => (
+              <div className="flex items-center gap-1 flex-wrap">
+                {[1000, 1500, 2000, 2500, 3000].map(val => (
                   <button
                     key={val}
                     type="button"
@@ -431,7 +448,7 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    {val.toLocaleString()} Karakter
+                    {val.toLocaleString()} {val === 1500 ? '⚡ Disarankan' : 'Karakter'}
                   </button>
                 ))}
               </div>
@@ -551,7 +568,9 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
               {isBatchGenerating && currentBatchIndex !== null && (
                 <span className="text-blue-600 font-mono font-bold animate-pulse flex items-center gap-1.5">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Sedang memproses Segmen #{currentBatchIndex + 1}...
+                  <span>
+                    Sedang memproses Segmen #{currentBatchIndex + 1} ({segments[currentBatchIndex]?.text.length.toLocaleString() || 0} karakter) &bull; {batchElapsed} dtk...
+                  </span>
                 </span>
               )}
             </div>
@@ -627,6 +646,22 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
                       <Download className="w-4 h-4" />
                       Download MP3 Lengkap
                     </a>
+
+                    {onOpenVideoModal && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenVideoModal({
+                          url: mergedAudioUrl,
+                          title: mergedFileName || 'VO Lengkap Gabungan',
+                          voiceName: activeVoice.name
+                        })}
+                        className="flex-1 sm:flex-none px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md shadow-teal-600/25 cursor-pointer"
+                        title="Ubah seluruh audio gabungan ini menjadi video MP4 dengan gambar statis"
+                      >
+                        <Film className="w-4 h-4" />
+                        <span>Buat Video MP4 🎬</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -836,6 +871,7 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
                         <audio 
                           src={seg.audioUrl} 
                           controls 
+                          preload="auto"
                           className="w-full h-9 rounded-full" 
                         />
                       </div>
@@ -861,15 +897,33 @@ export const LongScriptSegmentManager: React.FC<Props> = ({
                       </button>
 
                       {seg.audioUrl && (
-                        <a
-                          href={seg.audioUrl}
-                          download={`segmen-${idx + 1}-${segVoice.name.toLowerCase().replace(/\s+/g, '-')}.mp3`}
-                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200"
-                          title="Download MP3 segmen ini"
-                        >
-                          <Download className="w-3 h-3" />
-                          Download
-                        </a>
+                        <>
+                          <a
+                            href={seg.audioUrl}
+                            download={`segmen-${idx + 1}-${segVoice.name.toLowerCase().replace(/\s+/g, '-')}.mp3`}
+                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200"
+                            title="Download MP3 segmen ini"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>Download</span>
+                          </a>
+
+                          {onOpenVideoModal && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenVideoModal({
+                                url: seg.audioUrl!,
+                                title: `Segmen ${idx + 1} (${seg.text.slice(0, 30)}...)`,
+                                voiceName: segVoice.name
+                              })}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border border-slate-200 cursor-pointer"
+                              title="Buat video MP4 dari segmen ini"
+                            >
+                              <Film className="w-3 h-3" />
+                              <span>Video</span>
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

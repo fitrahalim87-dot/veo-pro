@@ -265,13 +265,24 @@ export async function generateColabVoiceClone(
     try {
       const data = await res.json();
       errMsg = data.error || errMsg;
-    } catch {}
+    } catch {
+      const txt = await res.text().catch(() => "");
+      if (txt) errMsg = txt.slice(0, 200);
+    }
     throw new Error(errMsg);
   }
 
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  return { url, blob };
+  const rawBlob = await res.blob();
+  if (rawBlob.size < 300) {
+    const errText = await rawBlob.text().catch(() => "");
+    throw new Error("File audio dari Colab kosong atau tidak valid: " + errText.slice(0, 150));
+  }
+
+  // Preserve server MIME type (audio/wav or audio/mpeg)
+  const contentType = res.headers.get("content-type") || "audio/wav";
+  const typedBlob = rawBlob.type ? rawBlob : new Blob([rawBlob], { type: contentType });
+  const url = URL.createObjectURL(typedBlob);
+  return { url, blob: typedBlob };
 }
 
 export async function generateAiScript(topic: string): Promise<string> {
