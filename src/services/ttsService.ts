@@ -38,36 +38,62 @@ export async function generateEdgeTtsDetailed(
     headers["x-speechma-key"] = apiKey;
   }
 
-  const response = await fetch("/api/tts", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      text,
-      voice,
-      rate: rateStr,
-      pitch: pitchStr,
-      apiKey,
-    }),
-  });
+  let lastError: Error | null = null;
+  const maxRetries = 2;
 
-  if (!response.ok) {
-    let errMsg = "Gagal membuat audio";
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const data = await response.json();
-      errMsg = data.error || errMsg;
-    } catch {
-      if (response.status === 404) {
-        errMsg = "Server API (/api/tts) tidak ditemukan (404). Di Vercel, pastikan file 'api/index.ts' dan 'vercel.json' sudah di-deploy dengan menekan tombol 'Redeploy' di Vercel Dashboard.";
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          text,
+          voice,
+          rate: rateStr,
+          pitch: pitchStr,
+          apiKey,
+        }),
+      });
+
+      if (!response.ok) {
+        let errMsg = "Gagal membuat audio";
+        try {
+          const data = await response.json();
+          errMsg = data.error || errMsg;
+        } catch {
+          if (response.status === 404) {
+            errMsg = "Server API (/api/tts) tidak ditemukan (404). Di Vercel, pastikan file 'api/index.ts' dan 'vercel.json' sudah di-deploy dengan menekan tombol 'Redeploy' di Vercel Dashboard.";
+          } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+            errMsg = `Server sedang bersiap dari mode siaga / cold start (Status ${response.status}). Silakan coba klik Generate sekali lagi.`;
+          }
+        }
+
+        // If serverless is waking up from idle (cold start: 502, 503, 504), wait and retry once
+        if (attempt < maxRetries && (response.status === 502 || response.status === 503 || response.status === 504)) {
+          await new Promise((r) => setTimeout(r, 1500));
+          continue;
+        }
+
+        throw new Error(errMsg);
       }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const base64 = await blobToBase64(blob);
+
+      return { url, blob, base64 };
+    } catch (err: any) {
+      lastError = err;
+      // Auto-retry once on transient network glitch or cold start wakeup
+      if (attempt < maxRetries && (err.name === "TypeError" || err.message?.includes("Failed to fetch"))) {
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      break;
     }
-    throw new Error(errMsg);
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const base64 = await blobToBase64(blob);
-
-  return { url, blob, base64 };
+  throw lastError || new Error("Gagal menghubungkan ke server TTS.");
 }
 
 export async function generateEdgeTts(

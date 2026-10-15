@@ -111,15 +111,24 @@ export const EDGE_VOICES: Voice[] = [
   },
   { 
     id: 'it-IT-GiuseppeMultilingualNeural', 
-    name: 'Giuseppe', 
+    name: 'Lucca (Viral Aesthetic)', 
     gender: 'Laki-laki', 
     category: 'Multilingual',
     language: 'Multilingual (Bisa Semua Bahasa)',
-    badge: 'Karismatik',
-    description: 'Vokal pria karismatik, hangat, luwes membaca berbagai bahasa' 
+    badge: 'Viral TikTok',
+    description: 'Karakter Lucca favorit CapCut & TikTok: cowok aesthetic, karismatik, hangat, fasih membaca bahasa Indonesia dan multilingual' 
   },
 
   // 2. Indonesia & Bahasa Daerah
+  { 
+    id: 'id-ID-ArdiNeural-Pejabat', 
+    name: 'Pejabat Negara (Pidato Resmi)', 
+    gender: 'Laki-laki', 
+    category: 'Indonesia',
+    language: 'Indonesia (Pidato & Formal)',
+    badge: 'Wibawa & Kenegaraan',
+    description: 'Suara resmi pejabat tinggi negara, presiden, atau menteri: berwibawa, berat, tegas, dan khidmat untuk pidato kenegaraan, sambutan resmi, & berita' 
+  },
   { 
     id: 'id-ID-GadisNeural', 
     name: 'Gadis', 

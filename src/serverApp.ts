@@ -4,6 +4,7 @@ import fs from "fs";
 import os from "os";
 import { execFile } from "child_process";
 import { Communicate, listVoices } from "edge-tts-universal";
+import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 import { GoogleGenAI } from "@google/genai";
 
 let cachedVoices: any[] = [];
@@ -31,6 +32,12 @@ interface VoicePersonaConfig {
 }
 
 export const VOICE_PERSONA_MAP: Record<string, VoicePersonaConfig> = {
+  // Pejabat Negara -> Pidato Kenegaraan, Berat, Berwibawa, Tegas, Khidmat
+  "id-ID-ArdiNeural-Pejabat": {
+    engineVoice: "id-ID-ArdiNeural",
+    pitchOffsetHz: -8,
+    rateOffsetPct: -6,
+  },
   // Fitra -> Profiling Suara Rekaman Pengguna (Cowok muda santai storytelling)
   "id-ID-FitraCustomNeural": {
     engineVoice: "en-US-AndrewMultilingualNeural",
@@ -202,26 +209,51 @@ export async function streamAudioChunks(
   pitch: string = "+0Hz", 
   volume: string = "+0%"
 ): Promise<Buffer> {
-  const communicate = new Communicate(text.trim(), {
-    voice,
-    rate,
-    pitch,
-    volume,
-    connectionTimeout: 25000,
+  const tts = new MsEdgeTTS({ connectionTimeoutMs: 10000 });
+  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+
+  return new Promise<Buffer>((resolve, reject) => {
+    let finished = false;
+    const timer = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        tts.close();
+        reject(new Error("Timeout saat menghubungi server Edge TTS."));
+      }
+    }, 15000);
+
+    const { audioStream } = tts.toStream(text.trim(), {
+      rate: rate || "+0%",
+      pitch: pitch || "+0Hz",
+    });
+
+    const chunks: Buffer[] = [];
+    audioStream.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    audioStream.on("end", () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timer);
+        tts.close();
+        if (chunks.length === 0) {
+          reject(new Error("Tidak ada audio yang diterima dari Edge TTS."));
+        } else {
+          resolve(Buffer.concat(chunks));
+        }
+      }
+    });
+
+    audioStream.on("error", (err: any) => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timer);
+        tts.close();
+        reject(err);
+      }
+    });
   });
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of communicate.stream()) {
-    if (chunk.type === "audio" && chunk.data) {
-      chunks.push(Buffer.from(chunk.data));
-    }
-  }
-
-  if (chunks.length === 0) {
-    throw new Error("No audio was received.");
-  }
-
-  return Buffer.concat(chunks);
 }
 
 export async function synthesizeSingleChunkWithFallback(
@@ -282,6 +314,91 @@ export async function synthesizeSingleChunkWithFallback(
   const fallbackVoice = isFemale ? "en-US-AvaMultilingualNeural" : "en-US-BrianMultilingualNeural";
 
   return await streamAudioChunks(text, fallbackVoice, "+0%", "+0Hz", "+0%");
+}
+
+export async function generateGeminiTts(
+  text: string,
+  voice: string = "en-US-BrianMultilingualNeural",
+  rate: string = "+0%",
+  pitch: string = "+0Hz"
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY tidak dikonfigurasi di server.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  // Map requested persona to prebuilt voice and expressive style prompt
+  // Supported prebuilt voices: 'Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'
+  let voiceName: "Puck" | "Charon" | "Kore" | "Fenrir" | "Zephyr" = "Puck";
+  let stylePrompt = "Natural, expressive, clear Indonesian speaker";
+
+  const lower = voice.toLowerCase();
+  if (lower.includes("pejabat") || lower.includes("presiden") || lower.includes("menteri")) {
+    voiceName = "Charon";
+    stylePrompt = "Authoritative, dignified, commanding formal Indonesian state official delivering a national presidential speech";
+  } else if (lower.includes("lucca") || lower.includes("giuseppe")) {
+    voiceName = "Fenrir";
+    stylePrompt = "Charming, aesthetic, warm and stylish young male speaker";
+  } else if (lower.includes("christopher") || lower.includes("deep") || lower.includes("trailer") || lower.includes("bariton")) {
+    voiceName = "Charon";
+    stylePrompt = "Deep, resonant, cinematic movie trailer narrator with powerful presence";
+  } else if (lower.includes("brian") || lower.includes("recap") || lower.includes("kenzo") || lower.includes("fitra")) {
+    voiceName = "Puck";
+    stylePrompt = "Casual, natural, engaging young male Indonesian narrator, conversational TikTok and YouTube style";
+  } else if (lower.includes("guy") || lower.includes("ryan") || lower.includes("andrew") || lower.includes("hamed") || lower.includes("male") || lower.includes("pria")) {
+    voiceName = "Fenrir";
+    stylePrompt = "Warm, articulate, confident male speaker";
+  } else if (lower.includes("gadis") || lower.includes("ava") || lower.includes("emma") || lower.includes("story") || lower.includes("zariyah")) {
+    voiceName = "Kore";
+    stylePrompt = "Friendly, natural, smooth female storyteller";
+  } else if (lower.includes("jenny") || lower.includes("nanami") || lower.includes("ana") || lower.includes("female") || lower.includes("sunhi") || lower.includes("wanita") || lower.includes("thalita")) {
+    voiceName = "Zephyr";
+    stylePrompt = "Cheerful, lively, expressive youthful female voice";
+  }
+
+  const rateNum = parseNumeric(rate, 0);
+  if (rateNum > 15) {
+    stylePrompt += ", speaking at a brisk, energetic pace";
+  } else if (rateNum < -15) {
+    stylePrompt += ", speaking at a slow, calm, deliberate pace";
+  }
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.8-flash-lite-tts",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: text.trim(),
+            speechMetadata: {
+              style: stylePrompt,
+            },
+          },
+        ],
+      },
+    ] as any,
+    config: {
+      responseModalities: ["AUDIO"],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName },
+        },
+      },
+    },
+  });
+
+  const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (!base64Audio) {
+    throw new Error("Tidak ada audio yang dihasilkan dari model TTS.");
+  }
+
+  return {
+    buffer: Buffer.from(base64Audio, "base64"),
+    mimeType: "audio/wav",
+  };
 }
 
 export async function synthesizeVoiceWithFallback(
@@ -407,23 +524,40 @@ export function createApp() {
         .replace(/\[jeda(?:\s*singkat|\s*0\.5s)?\]/gi, '<break time="500ms"/>')
         .replace(/\[napas\]/gi, ', ');
 
-      // 3. High-Quality Neural TTS Engine with automatic retry and graceful fallback
-      const combinedAudio = await synthesizeVoiceWithFallback(
-        processedText,
-        voice,
-        rate,
-        pitch,
-        volume
-      );
+      // 3. Multi-Tier Intelligent TTS Engine
+      // Priority 1: Original Free Microsoft Edge Neural Voices (Brian, Gadis, Christopher, Ava, Emma, etc.)
+      // Priority 2: Gemini AI Speech Engine (Reliable fallback if Edge network is unreachable)
+      let finalAudioBuffer: Buffer;
+      let finalContentType = "audio/mpeg";
+
+      try {
+        finalAudioBuffer = await synthesizeVoiceWithFallback(
+          processedText,
+          voice,
+          rate,
+          pitch,
+          volume
+        );
+        finalContentType = "audio/mpeg";
+      } catch (edgeErr: any) {
+        console.warn("Original Edge TTS failed, falling back to Gemini TTS:", edgeErr.message);
+        if (process.env.GEMINI_API_KEY) {
+          const geminiRes = await generateGeminiTts(processedText, voice, rate, pitch);
+          finalAudioBuffer = geminiRes.buffer;
+          finalContentType = geminiRes.mimeType;
+        } else {
+          throw edgeErr;
+        }
+      }
 
       res.set({
-        "Content-Type": "audio/mpeg",
-        "Content-Length": combinedAudio.length.toString(),
+        "Content-Type": finalContentType,
+        "Content-Length": finalAudioBuffer.length.toString(),
         "Accept-Ranges": "bytes",
         "Cache-Control": "public, max-age=3600",
       });
 
-      return res.end(combinedAudio);
+      return res.end(finalAudioBuffer);
     } catch (err: any) {
       console.error("TTS Server Error:", err);
       return res.status(500).json({ error: err.message || "Gagal membuat audio TTS" });

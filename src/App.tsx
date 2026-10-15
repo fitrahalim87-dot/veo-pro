@@ -162,8 +162,10 @@ export default function App() {
         sampleText = "Halo kakak-kakak! Aku Ana. Suaraku ceria dan imut banget buat dongeng dan video animasi!";
       } else if (voice.id.includes('Thalita')) {
         sampleText = "Hai! Aku Thalita. Suaraku ceria, segar, dan luwes banget buat membaca teks bahasa Indonesia maupun bahasa lainnya.";
-      } else if (voice.id.includes('Giuseppe')) {
-        sampleText = "Halo kawan! Kenalin saya Giuseppe. Vokal saya hangat dan karismatik untuk berbagai kebutuhan audio kamu.";
+      } else if (voice.id.includes('Pejabat') || voice.name.toLowerCase().includes('pejabat')) {
+        sampleText = "Assalamu alaikum warahmatullahi wabarakatuh. Saudara-saudara sebangsa dan se-tanah air, mari kita jaga persatuan dan kesatuan bangsa.";
+      } else if (voice.id.includes('Giuseppe') || voice.name.toLowerCase().includes('lucca')) {
+        sampleText = "Ciao kawan! Kenalin gue Lucca. Suara gue aesthetic, keren, dan karismatik buat bikin konten kamu makin berkelas!";
       } else if (voice.language === 'Jawa') {
         sampleText = `Sugeng rawuh sedherek sedaya, iki sworo ${voice.name}.`;
       } else if (voice.language === 'Sunda') {
